@@ -69,10 +69,38 @@ export default function Dashboard() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [modalContent, setModalContent] = useState<{ title: string; content: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // First, check if we have data in sessionStorage (from upload)
+        const storedData = sessionStorage.getItem('linkedinData');
+        
+        if (storedData) {
+          try {
+            const data = JSON.parse(storedData);
+            console.log('Loading data from sessionStorage');
+            
+            // Calculate stats from stored data
+            const statsData = calculateStats(data);
+            
+            setStats(statsData);
+            setInvitations(data.invitations || []);
+            setJobs(data.jobs || []);
+            setMessages(data.messages || []);
+            setRichMedia(data.richMedia || []);
+            setConnections(data.connections || []);
+            
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Error parsing stored data:', e);
+            sessionStorage.removeItem('linkedinData');
+          }
+        }
+
+        // Fallback to API routes (for local development or if sessionStorage fails)
         const [statsRes, invRes, jobsRes, msgRes, mediaRes, connRes] = await Promise.all([
           fetch('/api/stats'),
           fetch('/api/invitations'),
@@ -93,6 +121,13 @@ export default function Dashboard() {
         const mediaData = await mediaRes.json();
         const connData = await connRes.json();
 
+        console.log('Stats data:', statsData);
+        console.log('Invitations count:', invData.data?.length || 0);
+        console.log('Jobs count:', jobsData.data?.length || 0);
+        console.log('Messages count:', msgData.data?.length || 0);
+        console.log('Rich Media count:', mediaData.data?.length || 0);
+        console.log('Connections count:', connData.data?.length || 0);
+        
         setStats(statsData);
         setInvitations(invData.data || []);
         setJobs(jobsData.data || []);
@@ -101,9 +136,21 @@ export default function Dashboard() {
         const connectionsData = connData.data || [];
         console.log('Connections data loaded:', connectionsData.length, 'items');
         setConnections(connectionsData);
+        
+        // Check if we have any data
+        const totalItems = (invData.data?.length || 0) + 
+                          (jobsData.data?.length || 0) + 
+                          (msgData.data?.length || 0) + 
+                          (mediaData.data?.length || 0) + 
+                          (connData.data?.length || 0);
+        
+        if (totalItems === 0) {
+          console.warn('No data found! This might be a serverless filesystem issue.');
+          setError('No data found. Please upload your LinkedIn export file.');
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
-        router.push('/');
+        setError('Failed to load data. Please try uploading the file again.');
       } finally {
         setLoading(false);
       }
@@ -111,6 +158,110 @@ export default function Dashboard() {
 
     fetchData();
   }, [router]);
+
+  // Helper function to calculate stats from data
+  const calculateStats = (data: any): Stats => {
+    const invitations = data.invitations || [];
+    const jobs = data.jobs || [];
+    const messages = data.messages || [];
+    const richMedia = data.richMedia || [];
+    const connections = data.connections || [];
+
+    // Calculate stats similar to API route
+    const outgoingInvitations = invitations.filter((inv: any) => inv.Direction === 'OUTGOING').length;
+    const incomingInvitations = invitations.filter((inv: any) => inv.Direction === 'INCOMING').length;
+    const invitationsWithMessage = invitations.filter((inv: any) => inv.Message && inv.Message.trim() !== '').length;
+
+    const monthlyInvitations: Record<string, number> = {};
+    invitations.forEach((inv: any) => {
+      try {
+        const date = parse(inv['Sent At'], 'M/d/yy, h:mm a', new Date());
+        const monthKey = format(date, 'yyyy-MM');
+        monthlyInvitations[monthKey] = (monthlyInvitations[monthKey] || 0) + 1;
+      } catch (e) {}
+    });
+
+    const activeJobs = jobs.filter((job: any) => job['Job State'] === 'OPEN' || job['Job State'] === 'LISTED').length;
+    const closedJobs = jobs.filter((job: any) => job['Job State'] === 'CLOSED').length;
+    const draftJobs = jobs.filter((job: any) => job['Job State'] === 'DRAFT').length;
+    const uniqueCompanies = new Set(jobs.map((job: any) => job['Company Name'])).size;
+
+    const inboxMessages = messages.filter((msg: any) => msg.FOLDER === 'INBOX').length;
+    const sentMessages = messages.filter((msg: any) => msg.FOLDER === 'SENT').length;
+    const draftMessages = messages.filter((msg: any) => msg['IS MESSAGE DRAFT'] === 'Yes').length;
+    const uniqueConversations = new Set(messages.map((msg: any) => msg['CONVERSATION ID'])).size;
+
+    const totalMedia = richMedia.length;
+    const profilePhotos = richMedia.filter((media: any) => 
+      media['Media Description']?.toLowerCase().includes('profile photo')
+    ).length;
+    const feedPhotos = richMedia.filter((media: any) => 
+      media['Media Description']?.toLowerCase().includes('feed photo')
+    ).length;
+    const backgroundPhotos = richMedia.filter((media: any) => 
+      media['Media Description']?.toLowerCase().includes('background photo')
+    ).length;
+
+    const connectionsWithEmail = connections.filter((conn: any) => conn['Email Address'] && conn['Email Address'].trim() !== '').length;
+    const uniqueConnectionCompanies = new Set(connections.map((conn: any) => conn.Company).filter(Boolean)).size;
+
+    const monthlyConnections: Record<string, number> = {};
+    connections.forEach((conn: any) => {
+      try {
+        const date = parse(conn['Connected On'], 'dd MMM yyyy', new Date());
+        const monthKey = format(date, 'yyyy-MM');
+        monthlyConnections[monthKey] = (monthlyConnections[monthKey] || 0) + 1;
+      } catch (e) {}
+    });
+
+    const companyCounts: Record<string, number> = {};
+    connections.forEach((conn: any) => {
+      if (conn.Company && conn.Company.trim() !== '') {
+        companyCounts[conn.Company] = (companyCounts[conn.Company] || 0) + 1;
+      }
+    });
+    const topCompanies = Object.entries(companyCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([company, count]) => ({ name: company, value: count }));
+
+    return {
+      invitations: {
+        total: invitations.length,
+        outgoing: outgoingInvitations,
+        incoming: incomingInvitations,
+        withMessage: invitationsWithMessage,
+        monthly: monthlyInvitations,
+      },
+      jobs: {
+        total: jobs.length,
+        active: activeJobs,
+        closed: closedJobs,
+        draft: draftJobs,
+        uniqueCompanies,
+      },
+      messages: {
+        total: messages.length,
+        inbox: inboxMessages,
+        sent: sentMessages,
+        drafts: draftMessages,
+        uniqueConversations,
+      },
+      richMedia: {
+        total: totalMedia,
+        profilePhotos,
+        feedPhotos,
+        backgroundPhotos,
+      },
+      connections: {
+        total: connections.length,
+        withEmail: connectionsWithEmail,
+        uniqueCompanies: uniqueConnectionCompanies,
+        monthly: monthlyConnections,
+        topCompanies,
+      },
+    };
+  };
 
   const filterByDateRange = (items: any[], dateField: string, dateFormat?: string) => {
     if (!dateRange.start && !dateRange.end) return items;

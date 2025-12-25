@@ -50,6 +50,13 @@ export default function UploadPage() {
         throw new Error(data.error || 'Failed to process file');
       }
 
+      // Store data in sessionStorage for dashboard to use
+      // This is needed because Vercel serverless functions don't share /tmp
+      if (data.data) {
+        sessionStorage.setItem('linkedinData', JSON.stringify(data.data));
+        sessionStorage.setItem('linkedinExportDate', data.exportDate);
+      }
+
       setSuccess(true);
       setTimeout(() => {
         router.push('/dashboard');

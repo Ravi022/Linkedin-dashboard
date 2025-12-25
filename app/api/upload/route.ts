@@ -78,10 +78,33 @@ export async function POST(request: NextRequest) {
     const configPath = path.join(uploadsDir, 'config.json');
     fs.writeFileSync(configPath, JSON.stringify({ currentExport: exportDate }));
 
+    // In serverless environments, we need to process and return data immediately
+    // because /tmp is not shared between function invocations
+    // Import and process all data here
+    const { getInvitations, getJobPostings, getMessages, getRichMedia, getConnections } = await import('@/lib/csvParser');
+    
+    // Force refresh the data directory
+    const csvParser = await import('@/lib/csvParser');
+    // Clear any cached directory path
+    delete (csvParser as any).DATA_DIR;
+    
+    const invitations = getInvitations();
+    const jobs = getJobPostings();
+    const messages = getMessages();
+    const richMedia = getRichMedia();
+    const connections = getConnections();
+
     return NextResponse.json({
       success: true,
       message: 'File processed successfully',
       exportDate,
+      data: {
+        invitations,
+        jobs,
+        messages,
+        richMedia,
+        connections,
+      },
     });
   } catch (error) {
     console.error('Error processing upload:', error);

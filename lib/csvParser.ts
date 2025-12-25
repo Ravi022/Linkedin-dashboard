@@ -75,10 +75,16 @@ function getDataDir(): string {
     : path.join(process.cwd(), 'uploads');
   const configPath = path.join(uploadsDir, 'config.json');
   
+  console.log(`Looking for data in: ${uploadsDir}`);
+  console.log(`Config path: ${configPath}`);
+  console.log(`Config exists: ${fs.existsSync(configPath)}`);
+  
   if (fs.existsSync(configPath)) {
     try {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       const exportDir = path.join(uploadsDir, `Basic_LinkedInDataExport_${config.currentExport}`);
+      console.log(`Export directory: ${exportDir}`);
+      console.log(`Export directory exists: ${fs.existsSync(exportDir)}`);
       if (fs.existsSync(exportDir)) {
         return exportDir;
       }
@@ -89,11 +95,14 @@ function getDataDir(): string {
   
   // Fallback to parent directory (for local development)
   const fallbackDir = path.resolve(process.cwd(), '..', 'Basic_LinkedInDataExport_12-24-2025');
+  console.log(`Fallback directory: ${fallbackDir}`);
+  console.log(`Fallback exists: ${fs.existsSync(fallbackDir)}`);
   if (fs.existsSync(fallbackDir)) {
     return fallbackDir;
   }
   
   // If nothing exists, return the uploads directory (will be empty but won't crash)
+  console.warn(`No data directory found, using: ${uploadsDir}`);
   return uploadsDir;
 }
 
@@ -103,6 +112,8 @@ function parseCSV<T>(filePath: string): T[] {
   try {
     if (!fs.existsSync(filePath)) {
       console.error(`File not found: ${filePath}`);
+      console.error(`Current working directory: ${process.cwd()}`);
+      console.error(`VERCEL env: ${process.env.VERCEL}`);
       return [];
     }
     const fileContent = fs.readFileSync(filePath, 'utf-8');
@@ -110,6 +121,7 @@ function parseCSV<T>(filePath: string): T[] {
       header: true,
       skipEmptyLines: true,
     });
+    console.log(`Successfully parsed ${result.data.length} rows from ${filePath}`);
     return result.data;
   } catch (error) {
     console.error(`Error parsing ${filePath}:`, error);
