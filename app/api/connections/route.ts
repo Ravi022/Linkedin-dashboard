@@ -4,13 +4,11 @@ import { getConnections } from '@/lib/csvParser';
 export async function GET() {
   try {
     const connections = getConnections();
-    return NextResponse.json({ data: connections });
+    return NextResponse.json({ data: connections || [] });
   } catch (error) {
-    console.error('Error fetching connections:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch connections' },
-      { status: 500 }
-    );
+    console.warn('Could not fetch connections (file may be missing):', error);
+    // Return empty array instead of error - handle gracefully
+    return NextResponse.json({ data: [] });
   }
 }
 

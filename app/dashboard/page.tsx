@@ -167,56 +167,62 @@ export default function Dashboard() {
     const richMedia = data.richMedia || [];
     const connections = data.connections || [];
 
-    // Calculate stats similar to API route
-    const outgoingInvitations = invitations.filter((inv: any) => inv.Direction === 'OUTGOING').length;
-    const incomingInvitations = invitations.filter((inv: any) => inv.Direction === 'INCOMING').length;
-    const invitationsWithMessage = invitations.filter((inv: any) => inv.Message && inv.Message.trim() !== '').length;
+    // Calculate stats similar to API route (handle missing fields gracefully)
+    const outgoingInvitations = invitations.filter((inv: any) => inv?.Direction === 'OUTGOING').length;
+    const incomingInvitations = invitations.filter((inv: any) => inv?.Direction === 'INCOMING').length;
+    const invitationsWithMessage = invitations.filter((inv: any) => inv?.Message && inv.Message.trim() !== '').length;
 
     const monthlyInvitations: Record<string, number> = {};
     invitations.forEach((inv: any) => {
       try {
+        if (!inv?.['Sent At']) return;
         const date = parse(inv['Sent At'], 'M/d/yy, h:mm a', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyInvitations[monthKey] = (monthlyInvitations[monthKey] || 0) + 1;
-      } catch (e) {}
+      } catch (e) {
+        // Skip invalid dates
+      }
     });
 
-    const activeJobs = jobs.filter((job: any) => job['Job State'] === 'OPEN' || job['Job State'] === 'LISTED').length;
-    const closedJobs = jobs.filter((job: any) => job['Job State'] === 'CLOSED').length;
-    const draftJobs = jobs.filter((job: any) => job['Job State'] === 'DRAFT').length;
-    const uniqueCompanies = new Set(jobs.map((job: any) => job['Company Name'])).size;
+    const activeJobs = jobs.filter((job: any) => job?.['Job State'] === 'OPEN' || job?.['Job State'] === 'LISTED').length;
+    const closedJobs = jobs.filter((job: any) => job?.['Job State'] === 'CLOSED').length;
+    const draftJobs = jobs.filter((job: any) => job?.['Job State'] === 'DRAFT').length;
+    const uniqueCompanies = new Set(jobs.map((job: any) => job?.['Company Name']).filter(Boolean)).size;
 
-    const inboxMessages = messages.filter((msg: any) => msg.FOLDER === 'INBOX').length;
-    const sentMessages = messages.filter((msg: any) => msg.FOLDER === 'SENT').length;
-    const draftMessages = messages.filter((msg: any) => msg['IS MESSAGE DRAFT'] === 'Yes').length;
-    const uniqueConversations = new Set(messages.map((msg: any) => msg['CONVERSATION ID'])).size;
+    const inboxMessages = messages.filter((msg: any) => msg?.FOLDER === 'INBOX').length;
+    const sentMessages = messages.filter((msg: any) => msg?.FOLDER === 'SENT').length;
+    const draftMessages = messages.filter((msg: any) => msg?.['IS MESSAGE DRAFT'] === 'Yes').length;
+    const uniqueConversations = new Set(messages.map((msg: any) => msg?.['CONVERSATION ID']).filter(Boolean)).size;
 
     const totalMedia = richMedia.length;
     const profilePhotos = richMedia.filter((media: any) => 
-      media['Media Description']?.toLowerCase().includes('profile photo')
+      media?.['Media Description']?.toLowerCase()?.includes('profile photo')
     ).length;
     const feedPhotos = richMedia.filter((media: any) => 
-      media['Media Description']?.toLowerCase().includes('feed photo')
+      media?.['Media Description']?.toLowerCase()?.includes('feed photo')
     ).length;
     const backgroundPhotos = richMedia.filter((media: any) => 
-      media['Media Description']?.toLowerCase().includes('background photo')
+      media?.['Media Description']?.toLowerCase()?.includes('background photo')
     ).length;
 
-    const connectionsWithEmail = connections.filter((conn: any) => conn['Email Address'] && conn['Email Address'].trim() !== '').length;
-    const uniqueConnectionCompanies = new Set(connections.map((conn: any) => conn.Company).filter(Boolean)).size;
+    const connectionsWithEmail = connections.filter((conn: any) => conn?.['Email Address'] && conn['Email Address'].trim() !== '').length;
+    const uniqueConnectionCompanies = new Set(connections.map((conn: any) => conn?.Company).filter(Boolean)).size;
 
     const monthlyConnections: Record<string, number> = {};
     connections.forEach((conn: any) => {
       try {
+        if (!conn?.['Connected On']) return;
         const date = parse(conn['Connected On'], 'dd MMM yyyy', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyConnections[monthKey] = (monthlyConnections[monthKey] || 0) + 1;
-      } catch (e) {}
+      } catch (e) {
+        // Skip invalid dates
+      }
     });
 
     const companyCounts: Record<string, number> = {};
     connections.forEach((conn: any) => {
-      if (conn.Company && conn.Company.trim() !== '') {
+      if (conn?.Company && conn.Company.trim() !== '') {
         companyCounts[conn.Company] = (companyCounts[conn.Company] || 0) + 1;
       }
     });
@@ -295,52 +301,62 @@ export default function Dashboard() {
   };
 
   const filteredInvitations = useMemo(() => {
+    if (!invitations || invitations.length === 0) return [];
+    
     let filtered = filterByDateRange(invitations, 'Sent At', 'M/d/yy, h:mm a');
     
     if (filters.direction) {
-      filtered = filtered.filter((inv) => inv.Direction === filters.direction);
+      filtered = filtered.filter((inv) => inv?.Direction === filters.direction);
     }
     if (filters.hasMessage) {
       filtered = filtered.filter((inv) =>
-        filters.hasMessage === 'yes' ? inv.Message && inv.Message.trim() !== '' : !inv.Message || inv.Message.trim() === ''
+        filters.hasMessage === 'yes' 
+          ? inv?.Message && inv.Message.trim() !== '' 
+          : !inv?.Message || inv.Message.trim() === ''
       );
     }
     return filtered;
   }, [invitations, filters, dateRange]);
 
   const filteredJobs = useMemo(() => {
+    if (!jobs || jobs.length === 0) return [];
+    
     let filtered = filterByDateRange(jobs, 'Create Date');
     
     if (filters.jobState) {
-      filtered = filtered.filter((job) => job['Job State'] === filters.jobState);
+      filtered = filtered.filter((job) => job?.['Job State'] === filters.jobState);
     }
     if (filters.company) {
-      filtered = filtered.filter((job) => job['Company Name'] === filters.company);
+      filtered = filtered.filter((job) => job?.['Company Name'] === filters.company);
     }
     if (filters.employmentStatus) {
-      filtered = filtered.filter((job) => job['Employment Status'] === filters.employmentStatus);
+      filtered = filtered.filter((job) => job?.['Employment Status'] === filters.employmentStatus);
     }
     return filtered;
   }, [jobs, filters, dateRange]);
 
   const filteredMessages = useMemo(() => {
+    if (!messages || messages.length === 0) return [];
+    
     let filtered = filterByDateRange(messages, 'DATE');
     
     if (filters.folder) {
-      filtered = filtered.filter((msg) => msg.FOLDER === filters.folder);
+      filtered = filtered.filter((msg) => msg?.FOLDER === filters.folder);
     }
     if (filters.isDraft) {
-      filtered = filtered.filter((msg) => msg['IS MESSAGE DRAFT'] === filters.isDraft);
+      filtered = filtered.filter((msg) => msg?.['IS MESSAGE DRAFT'] === filters.isDraft);
     }
     return filtered;
   }, [messages, filters, dateRange]);
 
   const filteredRichMedia = useMemo(() => {
+    if (!richMedia || richMedia.length === 0) return [];
+    
     let filtered = filterByDateRange(richMedia, 'Date/Time');
     
     if (filters.mediaType) {
       filtered = filtered.filter((media) => {
-        const desc = media['Media Description']?.toLowerCase() || '';
+        const desc = media?.['Media Description']?.toLowerCase() || '';
         return desc.includes(filters.mediaType.toLowerCase());
       });
     }
@@ -348,38 +364,38 @@ export default function Dashboard() {
   }, [richMedia, filters, dateRange]);
 
   const filteredConnections = useMemo(() => {
+    if (!connections || connections.length === 0) return [];
+    
     let filtered = filterByDateRange(connections, 'Connected On', 'dd MMM yyyy');
-    console.log('After date filter:', filtered.length, 'connections');
     
     if (filters.company && filters.company !== 'Unknown') {
       filtered = filtered.filter((conn) => 
-        conn.Company?.trim() === filters.company
+        conn?.Company?.trim() === filters.company
       );
-      console.log('After company filter:', filtered.length, 'connections');
     }
     if (filters.hasEmail) {
       filtered = filtered.filter((conn) =>
         filters.hasEmail === 'yes' 
-          ? conn['Email Address'] && conn['Email Address'].trim() !== ''
-          : !conn['Email Address'] || conn['Email Address'].trim() === ''
+          ? conn?.['Email Address'] && conn['Email Address'].trim() !== ''
+          : !conn?.['Email Address'] || conn['Email Address'].trim() === ''
       );
-      console.log('After email filter:', filtered.length, 'connections');
     }
     if (filters.position && filters.position !== 'Unknown') {
       filtered = filtered.filter((conn) =>
-        conn.Position?.trim() === filters.position
+        conn?.Position?.trim() === filters.position
       );
-      console.log('After position filter:', filtered.length, 'connections');
     }
-    console.log('Final filtered connections:', filtered.length);
     return filtered;
   }, [connections, filters, dateRange]);
 
   // Prepare chart data - Dynamic based on filtered data
   const monthlyInvitationsData = useMemo(() => {
+    if (!filteredInvitations || filteredInvitations.length === 0) return [];
+    
     const monthlyData: Record<string, number> = {};
     filteredInvitations.forEach(inv => {
       try {
+        if (!inv?.['Sent At']) return;
         const date = parse(inv['Sent At'], 'M/d/yy, h:mm a', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
@@ -397,9 +413,11 @@ export default function Dashboard() {
   }, [filteredInvitations]);
 
   const jobStatusData = useMemo(() => {
+    if (!filteredJobs || filteredJobs.length === 0) return [];
+    
     const statusCounts: Record<string, number> = {};
     filteredJobs.forEach(job => {
-      const status = job['Job State'] || 'Unknown';
+      const status = job?.['Job State'] || 'Unknown';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
     });
     
@@ -414,18 +432,21 @@ export default function Dashboard() {
 
 
   const mediaTypeData = useMemo(() => {
-    if (!stats?.richMedia) return [];
+    if (!stats?.richMedia || !filteredRichMedia || filteredRichMedia.length === 0) return [];
     return [
-      { name: 'Profile Photos', value: stats.richMedia.profilePhotos },
-      { name: 'Feed Photos', value: stats.richMedia.feedPhotos },
-      { name: 'Background Photos', value: stats.richMedia.backgroundPhotos },
+      { name: 'Profile Photos', value: stats.richMedia.profilePhotos || 0 },
+      { name: 'Feed Photos', value: stats.richMedia.feedPhotos || 0 },
+      { name: 'Background Photos', value: stats.richMedia.backgroundPhotos || 0 },
     ].filter(item => item.value > 0);
-  }, [stats]);
+  }, [stats, filteredRichMedia]);
 
   const monthlyConnectionsData = useMemo(() => {
+    if (!filteredConnections || filteredConnections.length === 0) return [];
+    
     const monthlyData: Record<string, number> = {};
     filteredConnections.forEach(conn => {
       try {
+        if (!conn?.['Connected On']) return;
         const date = parse(conn['Connected On'], 'dd MMM yyyy', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
@@ -443,9 +464,11 @@ export default function Dashboard() {
   }, [filteredConnections]);
 
   const topCompaniesData = useMemo(() => {
+    if (!filteredConnections || filteredConnections.length === 0) return [];
+    
     const companyCounts: Record<string, number> = {};
     filteredConnections.forEach(conn => {
-      if (conn.Company && conn.Company.trim() !== '') {
+      if (conn?.Company && conn.Company.trim() !== '') {
         const company = conn.Company.trim();
         companyCounts[company] = (companyCounts[company] || 0) + 1;
       }
@@ -514,7 +537,7 @@ export default function Dashboard() {
     {
       label: 'Company',
       key: 'company',
-      options: Array.from(new Set(jobs.map((j) => j['Company Name']))).slice(0, 20).map((company) => ({
+      options: Array.from(new Set(jobs.map((j) => j?.['Company Name']).filter(Boolean))).slice(0, 20).map((company) => ({
         label: company || 'Unknown',
         value: company || 'Unknown',
       })),
@@ -565,7 +588,7 @@ export default function Dashboard() {
     {
       label: 'Company',
       key: 'company',
-      options: Array.from(new Set(connections.map((c) => c.Company).filter(Boolean))).slice(0, 30).map((company) => ({
+      options: Array.from(new Set(connections.map((c) => c?.Company).filter(Boolean))).slice(0, 30).map((company) => ({
         label: company || 'Unknown',
         value: company || 'Unknown',
       })),
@@ -573,7 +596,7 @@ export default function Dashboard() {
     {
       label: 'Position',
       key: 'position',
-      options: Array.from(new Set(connections.map((c) => c.Position).filter(Boolean))).slice(0, 30).map((position) => ({
+      options: Array.from(new Set(connections.map((c) => c?.Position).filter(Boolean))).slice(0, 30).map((position) => ({
         label: position || 'Unknown',
         value: position || 'Unknown',
       })),
@@ -610,51 +633,51 @@ export default function Dashboard() {
             <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
               <StatsCard
                 title="Total Invitations"
-                value={stats.invitations.total}
+                value={stats.invitations?.total || 0}
                 icon={UserPlus}
                 color="blue"
                 trend={{
-                  value: stats.invitations.outgoing,
+                  value: stats.invitations?.outgoing || 0,
                   label: 'outgoing',
                 }}
               />
               <StatsCard
                 title="Job Postings"
-                value={stats.jobs.total}
+                value={stats.jobs?.total || 0}
                 icon={Briefcase}
                 color="green"
                 trend={{
-                  value: stats.jobs.active,
+                  value: stats.jobs?.active || 0,
                   label: 'active',
                 }}
               />
               <StatsCard
                 title="Messages"
-                value={stats.messages.total}
+                value={stats.messages?.total || 0}
                 icon={MessageSquare}
                 color="purple"
                 trend={{
-                  value: stats.messages.uniqueConversations,
+                  value: stats.messages?.uniqueConversations || 0,
                   label: 'conversations',
                 }}
               />
               <StatsCard
                 title="Posts Uploaded"
-                value={stats.richMedia.total}
+                value={stats.richMedia?.total || 0}
                 icon={ImageIcon}
                 color="orange"
                 trend={{
-                  value: stats.richMedia.profilePhotos,
+                  value: stats.richMedia?.profilePhotos || 0,
                   label: 'profile photos',
                 }}
               />
               <StatsCard
                 title="Connections"
-                value={stats.connections.total}
+                value={stats.connections?.total || 0}
                 icon={Users}
                 color="blue"
                 trend={{
-                  value: stats.connections.uniqueCompanies,
+                  value: stats.connections?.uniqueCompanies || 0,
                   label: 'companies',
                 }}
               />

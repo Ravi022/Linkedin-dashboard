@@ -4,13 +4,11 @@ import { getRichMedia } from '@/lib/csvParser';
 export async function GET() {
   try {
     const richMedia = getRichMedia();
-    return NextResponse.json({ data: richMedia });
+    return NextResponse.json({ data: richMedia || [] });
   } catch (error) {
-    console.error('Error fetching rich media:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch rich media' },
-      { status: 500 }
-    );
+    console.warn('Could not fetch rich media (file may be missing):', error);
+    // Return empty array instead of error - handle gracefully
+    return NextResponse.json({ data: [] });
   }
 }
 

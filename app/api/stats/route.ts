@@ -4,45 +4,77 @@ import { format, parse, startOfMonth, endOfMonth } from 'date-fns';
 
 export async function GET() {
   try {
-    const invitations = getInvitations();
-    const jobs = getJobPostings();
-    const messages = getMessages();
-    const richMedia = getRichMedia();
-    const connections = getConnections();
+    // Handle missing files gracefully
+    let invitations: any[] = [];
+    let jobs: any[] = [];
+    let messages: any[] = [];
+    let richMedia: any[] = [];
+    let connections: any[] = [];
 
-    // Invitations stats
-    const outgoingInvitations = invitations.filter(inv => inv.Direction === 'OUTGOING').length;
-    const incomingInvitations = invitations.filter(inv => inv.Direction === 'INCOMING').length;
-    const invitationsWithMessage = invitations.filter(inv => inv.Message && inv.Message.trim() !== '').length;
+    try {
+      invitations = getInvitations();
+    } catch (error) {
+      console.warn('Could not load invitations:', error);
+    }
 
-    // Jobs stats
-    const activeJobs = jobs.filter(job => job['Job State'] === 'OPEN' || job['Job State'] === 'LISTED').length;
-    const closedJobs = jobs.filter(job => job['Job State'] === 'CLOSED').length;
-    const draftJobs = jobs.filter(job => job['Job State'] === 'DRAFT').length;
-    const uniqueCompanies = new Set(jobs.map(job => job['Company Name'])).size;
+    try {
+      jobs = getJobPostings();
+    } catch (error) {
+      console.warn('Could not load job postings:', error);
+    }
 
-    // Messages stats
-    const inboxMessages = messages.filter(msg => msg.FOLDER === 'INBOX').length;
-    const sentMessages = messages.filter(msg => msg.FOLDER === 'SENT').length;
-    const draftMessages = messages.filter(msg => msg['IS MESSAGE DRAFT'] === 'Yes').length;
-    const uniqueConversations = new Set(messages.map(msg => msg['CONVERSATION ID'])).size;
+    try {
+      messages = getMessages();
+    } catch (error) {
+      console.warn('Could not load messages:', error);
+    }
 
-    // Rich Media stats
+    try {
+      richMedia = getRichMedia();
+    } catch (error) {
+      console.warn('Could not load rich media:', error);
+    }
+
+    try {
+      connections = getConnections();
+    } catch (error) {
+      console.warn('Could not load connections:', error);
+    }
+
+    // Invitations stats (handle missing fields gracefully)
+    const outgoingInvitations = invitations.filter(inv => inv?.Direction === 'OUTGOING').length;
+    const incomingInvitations = invitations.filter(inv => inv?.Direction === 'INCOMING').length;
+    const invitationsWithMessage = invitations.filter(inv => inv?.Message && inv.Message.trim() !== '').length;
+
+    // Jobs stats (handle missing fields gracefully)
+    const activeJobs = jobs.filter(job => job?.['Job State'] === 'OPEN' || job?.['Job State'] === 'LISTED').length;
+    const closedJobs = jobs.filter(job => job?.['Job State'] === 'CLOSED').length;
+    const draftJobs = jobs.filter(job => job?.['Job State'] === 'DRAFT').length;
+    const uniqueCompanies = new Set(jobs.map(job => job?.['Company Name']).filter(Boolean)).size;
+
+    // Messages stats (handle missing fields gracefully)
+    const inboxMessages = messages.filter(msg => msg?.FOLDER === 'INBOX').length;
+    const sentMessages = messages.filter(msg => msg?.FOLDER === 'SENT').length;
+    const draftMessages = messages.filter(msg => msg?.['IS MESSAGE DRAFT'] === 'Yes').length;
+    const uniqueConversations = new Set(messages.map(msg => msg?.['CONVERSATION ID']).filter(Boolean)).size;
+
+    // Rich Media stats (handle missing fields gracefully)
     const totalMedia = richMedia.length;
     const profilePhotos = richMedia.filter(media => 
-      media['Media Description']?.toLowerCase().includes('profile photo')
+      media?.['Media Description']?.toLowerCase()?.includes('profile photo')
     ).length;
     const feedPhotos = richMedia.filter(media => 
-      media['Media Description']?.toLowerCase().includes('feed photo')
+      media?.['Media Description']?.toLowerCase()?.includes('feed photo')
     ).length;
     const backgroundPhotos = richMedia.filter(media => 
-      media['Media Description']?.toLowerCase().includes('background photo')
+      media?.['Media Description']?.toLowerCase()?.includes('background photo')
     ).length;
 
-    // Monthly breakdown for invitations
+    // Monthly breakdown for invitations (handle missing fields gracefully)
     const monthlyInvitations: Record<string, number> = {};
     invitations.forEach(inv => {
       try {
+        if (!inv?.['Sent At']) return;
         const date = parse(inv['Sent At'], 'M/d/yy, h:mm a', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyInvitations[monthKey] = (monthlyInvitations[monthKey] || 0) + 1;
@@ -51,14 +83,15 @@ export async function GET() {
       }
     });
 
-    // Connections stats
-    const connectionsWithEmail = connections.filter(conn => conn['Email Address'] && conn['Email Address'].trim() !== '').length;
-    const uniqueConnectionCompanies = new Set(connections.map(conn => conn.Company).filter(Boolean)).size;
+    // Connections stats (handle missing fields gracefully)
+    const connectionsWithEmail = connections.filter(conn => conn?.['Email Address'] && conn['Email Address'].trim() !== '').length;
+    const uniqueConnectionCompanies = new Set(connections.map(conn => conn?.Company).filter(Boolean)).size;
     
-    // Monthly breakdown for connections
+    // Monthly breakdown for connections (handle missing fields gracefully)
     const monthlyConnections: Record<string, number> = {};
     connections.forEach(conn => {
       try {
+        if (!conn?.['Connected On']) return;
         const date = parse(conn['Connected On'], 'dd MMM yyyy', new Date());
         const monthKey = format(date, 'yyyy-MM');
         monthlyConnections[monthKey] = (monthlyConnections[monthKey] || 0) + 1;
@@ -67,10 +100,10 @@ export async function GET() {
       }
     });
 
-    // Top companies by connection count
+    // Top companies by connection count (handle missing fields gracefully)
     const companyCounts: Record<string, number> = {};
     connections.forEach(conn => {
-      if (conn.Company && conn.Company.trim() !== '') {
+      if (conn?.Company && conn.Company.trim() !== '') {
         companyCounts[conn.Company] = (companyCounts[conn.Company] || 0) + 1;
       }
     });

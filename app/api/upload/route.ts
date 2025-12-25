@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
     // Clean up temp file
     fs.unlinkSync(tempZipPath);
 
-    // Verify required files exist
-    const requiredFiles = [
+    // Check which files exist (all are optional - handle gracefully)
+    const optionalFiles = [
       'Invitations.csv',
       'messages.csv',
       'Rich_Media.csv',
@@ -59,19 +59,27 @@ export async function POST(request: NextRequest) {
       path.join('Jobs', 'Online Job Postings.csv'),
     ];
 
+    const existingFiles: string[] = [];
     const missingFiles: string[] = [];
-    for (const filePath of requiredFiles) {
+    for (const filePath of optionalFiles) {
       const fullPath = path.join(extractDir, filePath);
-      if (!fs.existsSync(fullPath)) {
+      if (fs.existsSync(fullPath)) {
+        existingFiles.push(filePath);
+      } else {
         missingFiles.push(filePath);
       }
     }
 
-    if (missingFiles.length > 0) {
+    if (existingFiles.length === 0) {
       return NextResponse.json(
-        { error: `Missing required files: ${missingFiles.join(', ')}` },
+        { error: 'No valid CSV files found in the ZIP archive. Please ensure your LinkedIn export contains at least one CSV file.' },
         { status: 400 }
       );
+    }
+
+    // Log missing files but continue processing
+    if (missingFiles.length > 0) {
+      console.warn(`Some optional files are missing: ${missingFiles.join(', ')}. Continuing with available files.`);
     }
 
     // Store the export date in a config file
@@ -80,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // In serverless environments, we need to process and return data immediately
     // because /tmp is not shared between function invocations
-    // Import and process all data here
+    // Import and process all data here - handle missing files gracefully
     const { getInvitations, getJobPostings, getMessages, getRichMedia, getConnections } = await import('@/lib/csvParser');
     
     // Force refresh the data directory
@@ -88,11 +96,52 @@ export async function POST(request: NextRequest) {
     // Clear any cached directory path
     delete (csvParser as any).DATA_DIR;
     
-    const invitations = getInvitations();
-    const jobs = getJobPostings();
-    const messages = getMessages();
-    const richMedia = getRichMedia();
-    const connections = getConnections();
+    // Process each file individually with error handling
+    let invitations: any[] = [];
+    let jobs: any[] = [];
+    let messages: any[] = [];
+    let richMedia: any[] = [];
+    let connections: any[] = [];
+
+    try {
+      invitations = getInvitations();
+      console.log(`Loaded ${invitations.length} invitations`);
+    } catch (error) {
+      console.warn('Could not load invitations:', error);
+      invitations = [];
+    }
+
+    try {
+      jobs = getJobPostings();
+      console.log(`Loaded ${jobs.length} job postings`);
+    } catch (error) {
+      console.warn('Could not load job postings:', error);
+      jobs = [];
+    }
+
+    try {
+      messages = getMessages();
+      console.log(`Loaded ${messages.length} messages`);
+    } catch (error) {
+      console.warn('Could not load messages:', error);
+      messages = [];
+    }
+
+    try {
+      richMedia = getRichMedia();
+      console.log(`Loaded ${richMedia.length} rich media items`);
+    } catch (error) {
+      console.warn('Could not load rich media:', error);
+      richMedia = [];
+    }
+
+    try {
+      connections = getConnections();
+      console.log(`Loaded ${connections.length} connections`);
+    } catch (error) {
+      console.warn('Could not load connections:', error);
+      connections = [];
+    }
 
     return NextResponse.json({
       success: true,

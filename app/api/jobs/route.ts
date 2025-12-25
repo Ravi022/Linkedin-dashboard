@@ -4,13 +4,11 @@ import { getJobPostings } from '@/lib/csvParser';
 export async function GET() {
   try {
     const jobs = getJobPostings();
-    return NextResponse.json({ data: jobs });
+    return NextResponse.json({ data: jobs || [] });
   } catch (error) {
-    console.error('Error fetching job postings:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch job postings' },
-      { status: 500 }
-    );
+    console.warn('Could not fetch job postings (file may be missing):', error);
+    // Return empty array instead of error - handle gracefully
+    return NextResponse.json({ data: [] });
   }
 }
 
