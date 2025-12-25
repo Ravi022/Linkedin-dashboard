@@ -69,7 +69,10 @@ export interface Connection {
 
 // Get the data directory - check uploads first, then fallback to parent directory
 function getDataDir(): string {
-  const uploadsDir = path.join(process.cwd(), 'uploads');
+  // Use /tmp for Vercel, process.cwd()/uploads for local
+  const uploadsDir = process.env.VERCEL 
+    ? path.join('/tmp', 'uploads')
+    : path.join(process.cwd(), 'uploads');
   const configPath = path.join(uploadsDir, 'config.json');
   
   if (fs.existsSync(configPath)) {
@@ -84,8 +87,14 @@ function getDataDir(): string {
     }
   }
   
-  // Fallback to parent directory
-  return path.resolve(process.cwd(), '..', 'Basic_LinkedInDataExport_12-24-2025');
+  // Fallback to parent directory (for local development)
+  const fallbackDir = path.resolve(process.cwd(), '..', 'Basic_LinkedInDataExport_12-24-2025');
+  if (fs.existsSync(fallbackDir)) {
+    return fallbackDir;
+  }
+  
+  // If nothing exists, return the uploads directory (will be empty but won't crash)
+  return uploadsDir;
 }
 
 const DATA_DIR = getDataDir();

@@ -115,6 +115,25 @@ npm run build
 npm start
 ```
 
+## Vercel Deployment Notes
+
+When deploying to Vercel:
+
+1. **File Storage**: The application uses `/tmp` directory for file uploads in serverless environments. This is the only writable directory in Vercel's serverless functions.
+
+2. **Important Limitation**: Files stored in `/tmp` are **ephemeral** and will be cleared between function invocations. This means:
+   - Uploaded files won't persist across deployments
+   - Each function invocation has its own `/tmp` directory
+   - Files are cleared when the function goes cold
+
+3. **Recommended Solutions for Production**:
+   - Use **Vercel Blob Storage** for persistent file storage
+   - Use **AWS S3** or similar cloud storage
+   - Process files immediately and store parsed data in a database (e.g., Vercel Postgres, Supabase)
+   - Use **Vercel KV** (Redis) to cache parsed data
+
+4. **Current Implementation**: The code automatically detects Vercel environment (`VERCEL` env variable) and uses `/tmp` for uploads. For local development, it uses `process.cwd()/uploads`.
+
 ## License
 
 This project is for personal use with your LinkedIn data export.

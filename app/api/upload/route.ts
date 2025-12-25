@@ -15,8 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'uploads');
+    // Use /tmp directory for Vercel serverless (only writable directory)
+    // In local development, use process.cwd()/uploads
+    const uploadsDir = process.env.VERCEL 
+      ? path.join('/tmp', 'uploads')
+      : path.join(process.cwd(), 'uploads');
+    
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
