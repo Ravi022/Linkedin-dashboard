@@ -74,13 +74,14 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // First, check if we have data in sessionStorage (from upload)
-        const storedData = sessionStorage.getItem('linkedinData');
-        
-        if (storedData) {
-          try {
-            const data = JSON.parse(storedData);
-            console.log('Loading data from sessionStorage');
+        // First, check if we have data in IndexedDB (from upload)
+        try {
+          const { getLinkedInData } = await import('@/lib/storage');
+          const storedData = await getLinkedInData();
+          
+          if (storedData && storedData.data) {
+            console.log('Loading data from IndexedDB');
+            const data = storedData.data;
             
             // Calculate stats from stored data
             const statsData = calculateStats(data);
@@ -94,10 +95,16 @@ export default function Dashboard() {
             
             setLoading(false);
             return;
-          } catch (e) {
-            console.error('Error parsing stored data:', e);
-            sessionStorage.removeItem('linkedinData');
           }
+        } catch (storageError) {
+          console.warn('Error reading from IndexedDB, falling back to API:', storageError);
+        }
+        
+        // Fallback: check sessionStorage for upload flag (legacy support)
+        const uploadFlag = sessionStorage.getItem('linkedinDataUploaded');
+        if (uploadFlag === 'true') {
+          console.log('Upload detected, fetching from API routes');
+          // Continue to API routes below
         }
 
         // Fallback to API routes (for local development or if sessionStorage fails)
@@ -792,14 +799,36 @@ export default function Dashboard() {
               { key: 'From', label: 'From', sortable: true },
               { key: 'To', label: 'To', sortable: true },
               {
+                key: 'inviteeProfileUrl',
+                label: 'Profile URL',
+                sortable: true,
+                render: (value) => {
+                  const url = value?.trim();
+                  return url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 truncate max-w-xs block"
+                      title={url}
+                    >
+                      {url.length > 50 ? url.substring(0, 50) + '...' : url}
+                    </a>
+                  ) : (
+                    '-'
+                  );
+                },
+              },
+              {
                 key: 'Sent At',
                 label: 'Sent At',
                 sortable: true,
                 render: (value) => {
                   try {
+                    if (!value) return '-';
                     return format(parse(value, 'M/d/yy, h:mm a', new Date()), 'MMM dd, yyyy');
                   } catch {
-                    return value;
+                    return value || '-';
                   }
                 },
               },
@@ -815,7 +844,7 @@ export default function Dashboard() {
                       className={`max-w-md ${isTruncated ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline' : ''}`}
                       title={isTruncated ? 'Click to view full message' : message}
                       onClick={() => isTruncated && message !== '-' && setModalContent({
-                        title: `Message from ${row.From} to ${row.To}`,
+                        title: `Message from ${row?.From} to ${row?.To}`,
                         content: message,
                       })}
                     >
@@ -835,7 +864,7 @@ export default function Dashboard() {
                         : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                     }`}
                   >
-                    {value}
+                    {value || '-'}
                   </span>
                 ),
               },

@@ -50,11 +50,24 @@ export default function UploadPage() {
         throw new Error(data.error || 'Failed to process file');
       }
 
-      // Store data in sessionStorage for dashboard to use
+      // Store data in IndexedDB for dashboard to use (has much larger quota than sessionStorage)
       // This is needed because Vercel serverless functions don't share /tmp
       if (data.data) {
-        sessionStorage.setItem('linkedinData', JSON.stringify(data.data));
-        sessionStorage.setItem('linkedinExportDate', data.exportDate);
+        try {
+          const { storeLinkedInData } = await import('@/lib/storage');
+          await storeLinkedInData(data.data, data.exportDate);
+          console.log('Data stored successfully in IndexedDB');
+        } catch (storageError) {
+          console.error('Error storing data in IndexedDB:', storageError);
+          // If IndexedDB fails, we'll need to fetch from API routes on dashboard
+          // Set a flag to indicate upload was successful
+          try {
+            sessionStorage.setItem('linkedinDataUploaded', 'true');
+            sessionStorage.setItem('linkedinExportDate', data.exportDate);
+          } catch (e) {
+            console.warn('Could not set sessionStorage flag:', e);
+          }
+        }
       }
 
       setSuccess(true);
